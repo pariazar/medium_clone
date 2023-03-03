@@ -8,12 +8,15 @@ import { ArticleResponseInterface } from './types/articleResponse.interface';
 import slugify from 'slugify';
 import { UpdateArticleDto } from 'src/dto/article/updateArticle.dto';
 import { ArticlesResponseInterface } from './types/articlesResponse.interface';
+import { FollowEntity } from 'src/profile/follow.entity';
 
 @Injectable()
 export class ArticleService {
   constructor(
     @InjectRepository(ArticleEntity)
     private readonly articleRepository: Repository<ArticleEntity>,
+    @InjectRepository(FollowEntity)
+    private readonly followRepository: Repository<FollowEntity>,
   ) {}
 
   async findArticle(
@@ -68,6 +71,46 @@ export class ArticleService {
     newArticle.author = currentUser;
     const finalArticle = await this.articleRepository.save(newArticle);
     return finalArticle;
+  }
+
+  async getFeed(
+    currentUser: UserEntity,
+    query: any,
+  ): Promise<ArticlesResponseInterface> {
+    const followingUsers = await this.followRepository.find({
+      followerId: currentUser.id,
+    });
+
+    if (!followingUsers) return { articles: [], total: 0 };
+
+    const queryBuilder = getRepository(ArticleEntity)
+      .createQueryBuilder('articles')
+      .leftJoinAndSelect('articles.author', 'author');
+
+    queryBuilder.orderBy('articles.createdAt', 'DESC');
+
+    queryBuilder.andWhere('articles.author.id IN (:...userId)', {
+      userId: followingUsers.map((following) => following.followingId),
+    });
+
+    if (query.tag) {
+      queryBuilder.andWhere('articles.tagList like :tag', {
+        tag: `%${query.tag}%`,
+      });
+    }
+
+    const total = await queryBuilder.getCount();
+
+    if (query.limit) {
+      queryBuilder.limit(query.limit);
+    }
+
+    if (query.offset) {
+      queryBuilder.offset(query.offset);
+    }
+
+    const articles = await queryBuilder.getMany();
+    return { articles, total };
   }
 
   async deleteArticle(user: UserEntity, slug: string): Promise<DeleteResult> {

@@ -18,6 +18,7 @@ import { User } from 'src/decorators/user.decorator';
 import { ArticleResponseInterface } from './types/articleResponse.interface';
 import { UserEntity } from 'src/user/user.entity';
 import { UpdateArticleDto } from 'src/dto/article/updateArticle.dto';
+import { ArticlesResponseInterface } from './types/articlesResponse.interface';
 
 @Controller('articles')
 export class ArticleController {
@@ -40,6 +41,16 @@ export class ArticleController {
       user,
     );
     return this.articleService.buildArticleResponse(article);
+  }
+
+  @Get('feed')
+  @UseGuards(AuthGuard)
+  @UsePipes(new ValidationPipe())
+  async getFeed(
+    @User() user,
+    @Query() query,
+  ): Promise<ArticlesResponseInterface> {
+    return await this.articleService.getFeed(user, query);
   }
 
   @Get(':slug')
