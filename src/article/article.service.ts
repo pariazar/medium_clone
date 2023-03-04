@@ -9,6 +9,9 @@ import slugify from 'slugify';
 import { UpdateArticleDto } from 'src/dto/article/updateArticle.dto';
 import { ArticlesResponseInterface } from './types/articlesResponse.interface';
 import { FollowEntity } from 'src/profile/follow.entity';
+import { CreateCommentDto } from 'src/dto/article/createComment.dto';
+import { CommentEntity } from './comment.entity';
+import { CommentResponseInterface } from './types/commentResponse.interface';
 
 @Injectable()
 export class ArticleService {
@@ -17,6 +20,8 @@ export class ArticleService {
     private readonly articleRepository: Repository<ArticleEntity>,
     @InjectRepository(FollowEntity)
     private readonly followRepository: Repository<FollowEntity>,
+    @InjectRepository(CommentEntity)
+    private readonly commentRepository: Repository<CommentEntity>,
   ) {}
 
   async findArticle(
@@ -52,6 +57,11 @@ export class ArticleService {
 
     return { articles, total };
   }
+  buildCommentResponse(comment: CommentEntity): CommentResponseInterface {
+    return {
+      comment,
+    };
+  }
   buildArticleResponse(article: ArticleEntity): ArticleResponseInterface {
     return {
       article,
@@ -72,7 +82,68 @@ export class ArticleService {
     const finalArticle = await this.articleRepository.save(newArticle);
     return finalArticle;
   }
+  async createComment(
+    createComment: CreateCommentDto,
+    slug: string,
+    currentUser: UserEntity,
+  ): Promise<CommentEntity> {
+    const article = await this.articleRepository.findOne({
+      slug,
+    });
+    if (!article)
+      throw new HttpException('there is no article', HttpStatus.NOT_FOUND);
 
+    const newComment = new CommentEntity();
+    Object.assign(newComment, createComment);
+    if (!createComment.body) {
+      throw new HttpException('cant comment be empty', HttpStatus.BAD_REQUEST);
+    }
+
+    newComment.author = currentUser;
+    newComment.article = article;
+    const finalComment = await this.commentRepository.save(newComment);
+    return finalComment;
+  }
+
+  async getComments(slug: string): Promise<CommentEntity[]> {
+    const article = await this.articleRepository.findOne({ slug });
+    if (!article)
+      throw new HttpException('there is no article', HttpStatus.NOT_FOUND);
+
+    const comments = await this.commentRepository.find({ article });
+
+    return comments;
+  }
+
+  async deleteComment(
+    commentId: number,
+    slug,
+    currentUser: UserEntity,
+  ): Promise<DeleteResult> {
+    const article = await this.articleRepository.findOne({
+      slug,
+    });
+    if (!article)
+      throw new HttpException('there is no article', HttpStatus.NOT_FOUND);
+
+    const comment = await this.commentRepository.findOne({
+      id: commentId,
+      article,
+    });
+    if (!comment)
+      throw new HttpException(
+        `there is no comment with ${String(comment)} id`,
+        HttpStatus.NOT_FOUND,
+      );
+
+    if (comment.author.id !== currentUser.id)
+      throw new HttpException(
+        'you cant delete other comments',
+        HttpStatus.FORBIDDEN,
+      );
+
+    return await this.commentRepository.delete({ id: commentId });
+  }
   async getFeed(
     currentUser: UserEntity,
     query: any,
