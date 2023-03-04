@@ -8,6 +8,7 @@ import {
 import { IsEmail, Max, Min } from 'class-validator';
 import { hash } from 'bcrypt';
 import { ArticleEntity } from 'src/article/article.entity';
+import { CommentEntity } from 'src/article/comment.entity';
 
 @Entity({
   name: 'users',
