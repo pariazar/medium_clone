@@ -121,6 +121,21 @@ export class ProfileService {
     return false;
   }
 
+  async updateAvatar(username: string, imagePath: string): Promise<boolean> {
+    const targetUser = await this.userRepository.findOne({
+      username,
+    });
+    const user = new UserEntity();
+    if (!targetUser)
+      throw new HttpException('user not found', HttpStatus.NOT_FOUND);
+
+    user.image = imagePath;
+    Object.assign(targetUser, user);
+
+    this.userRepository.save(targetUser);
+    return true;
+  }
+
   async buildProfileResponse(
     user,
     currentUser: UserEntity | null = null,

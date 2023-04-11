@@ -1,10 +1,15 @@
 import {
   Controller,
   Delete,
+  FileTypeValidator,
   Get,
+  MaxFileSizeValidator,
   Param,
+  ParseFilePipe,
   Post,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { User } from 'src/decorators/user.decorator';
 import { ProfileResponseInterface } from 'src/user/types/profileResponse.interface';
@@ -12,6 +17,10 @@ import { UserEntity } from 'src/user/user.entity';
 import { ProfileService } from './profile.service';
 import { AuthGuard } from 'src/guards/auth.guard';
 import { DeleteResult } from 'typeorm';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import * as path from 'path';
+import { Express } from 'express';
 
 @Controller('profiles')
 export class ProfileController {
@@ -43,5 +52,38 @@ export class ProfileController {
     @Param('username') username: string,
   ): Promise<DeleteResult> {
     return await this.profileService.unfollowUser(user, username);
+  }
+
+  @Post('avatar/upload')
+  @UseGuards(AuthGuard)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: './uploads/avatars',
+        filename: (req, file, cb) => {
+          const randomName = Array(32)
+            .fill(null)
+            .map(() => Math.round(Math.random() * 16).toString(16))
+            .join('');
+          return cb(null, `${randomName}${path.extname(file.originalname)}`);
+        },
+      }),
+    }),
+  )
+  async uploadAvatar(
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [
+          new FileTypeValidator({ fileType: '.(png|jpeg|jpg)' }),
+          new MaxFileSizeValidator({ maxSize: 1024 * 1024 * 4 }),
+        ],
+      }),
+    )
+    file: Express.Multer.File,
+    @User() user: UserEntity,
+  ): Promise<any> {
+    await this.profileService.updateAvatar(user.username, file.filename);
+
+    return file;
   }
 }
